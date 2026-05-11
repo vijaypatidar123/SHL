@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover
     pass
 
 
-DEFAULT_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
+DEFAULT_MODEL = "google/gemini-2.5-flash"
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
 

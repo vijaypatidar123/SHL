@@ -35,7 +35,8 @@ if hasattr(sys.stdout, "buffer"):
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.agent import run_turn
-from app.catalog import is_known_url
+from app.catalog import is_known_url, ALL_ITEMS
+from app.retrieval import get_retriever
 from app.schemas import ChatRequest, ChatResponse
 
 TRACES_DIR = Path(__file__).resolve().parent.parent / "traces" / "GenAI_SampleConversations"
@@ -185,6 +186,27 @@ def check_turn_cap(turns_used: int, cap: int = 8) -> bool:
     return turns_used <= cap
 
 
+def groundedness_score(responses: list[ChatResponse], user_turns: list[str]) -> float:
+    """Fraction of recommended items that exist in the SHL catalog.
+
+    A recommendation is 'grounded' if its URL is present in the catalog
+    (URL allow-list) AND its name matches a known catalog item.
+    This measures whether the agent hallucinated any products.
+    """
+    retr = get_retriever()
+    catalog_names = {it["name"].lower() for it in ALL_ITEMS}
+    total = 0
+    grounded = 0
+    for resp in responses:
+        for r in resp.recommendations:
+            total += 1
+            url_ok = is_known_url(r.url)
+            name_ok = r.name.lower() in catalog_names
+            if url_ok and name_ok:
+                grounded += 1
+    return grounded / total if total > 0 else 1.0
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -207,10 +229,11 @@ def main() -> int:
 
     print(f"Mode: {'single-shot' if args.fast else 'multi-turn'}")
     print(f"Traces: {len(trace_files)}\n")
-    print(f"{'Trace':<8} {'R@10':>6} {'Turns':>6} {'Recs':>5} {'Expected':>8}  Missed")
-    print("-" * 80)
+    print(f"{'Trace':<8} {'R@10':>6} {'Ground':>8} {'Turns':>6} {'Recs':>5} {'Expected':>8}  Missed")
+    print("-" * 90)
 
     recall_scores: list[float] = []
+    groundedness_scores: list[float] = []
     url_violations = 0
     turn_cap_violations = 0
     hard_eval_fails = 0
@@ -240,6 +263,10 @@ def main() -> int:
         r10 = recall_at_k(expected, got, k=10)
         recall_scores.append(r10)
 
+        # Groundedness
+        g_score = groundedness_score(responses, user_turns)
+        groundedness_scores.append(g_score)
+
         # Hard evals
         viol, total_checked = check_url_allowlist(responses)
         url_violations += viol
@@ -255,7 +282,7 @@ def main() -> int:
         missed_s = ", ".join(missed[:3]) + ("..." if len(missed) > 3 else "")
 
         print(
-            f"{trace_id:<8} {r10:>6.2f} {turns_used:>6d} {len(got):>5d} "
+            f"{trace_id:<8} {r10:>6.2f} {g_score:>8.2f} {turns_used:>6d} {len(got):>5d} "
             f"{len(expected):>8d}  {missed_s}"
         )
 
@@ -264,8 +291,12 @@ def main() -> int:
         return 1
 
     mean_r10 = sum(recall_scores) / len(recall_scores)
-    print("-" * 80)
-    print(f"{'Mean R@10':<8} {mean_r10:>6.2f}")
+    mean_ground = sum(groundedness_scores) / len(groundedness_scores) if groundedness_scores else 1.0
+    print("-" * 90)
+    print(f"{'Mean':<8} {mean_r10:>6.2f} {mean_ground:>8.2f}")
+    print(f"\nMetrics summary:")
+    print(f"  Mean Recall@10:            {mean_r10:.2f}  (recommendation relevance)")
+    print(f"  Mean Groundedness:         {mean_ground:.2f}  (fraction of recs from catalog, no hallucinations)")
     print(f"\nHard evals:")
     print(f"  URL allow-list violations: {url_violations}")
     print(f"  Turn-cap violations (>8):  {turn_cap_violations}")

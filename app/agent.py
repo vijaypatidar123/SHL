@@ -132,7 +132,7 @@ def _plan(history: list[dict[str, str]], user_turns: int) -> dict[str, Any]:
             {"role": "system", "content": prompts.PLANNER_SYSTEM},
             {"role": "user", "content": prompts.planner_user_message(history)},
         ]
-        plan = llm.chat_json(messages, temperature=0.1, max_tokens=512, timeout=10.0)
+        plan = llm.chat_json(messages, temperature=0.1, max_tokens=400, timeout=10.0)
         # Normalize lists/dicts that may be missing
         plan.setdefault("slots", {})
         plan.setdefault("retrieval_queries", [])

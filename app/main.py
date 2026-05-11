@@ -38,7 +38,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
-@app.get("/", include_in_schema=False)
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def ui() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 

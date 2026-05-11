@@ -10,4 +10,6 @@ services:
         sync: false
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: OPENROUTER_MODEL
+        value: "google/gemini-2.5-flash"
     plan: free
