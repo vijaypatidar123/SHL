@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SHL Assessment Recommender</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --shl-blue: #003057;
+    --shl-teal: #00a3a1;
+    --shl-light: #f4f7fa;
+    --bubble-user: #003057;
+    --bubble-bot: #ffffff;
+    --text-main: #1a1a2e;
+    --text-muted: #6b7280;
+    --radius: 16px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--shl-light);
+    color: var(--text-main);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--shl-blue);
+    color: #fff;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    flex-shrink: 0;
+  }
+  header svg { flex-shrink: 0; }
+  header h1 { font-size: 1.1rem; font-weight: 600; line-height: 1.2; }
+  header p  { font-size: 0.75rem; opacity: .7; margin-top: 2px; }
+  .badge {
+    margin-left: auto;
+    background: var(--shl-teal);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+    letter-spacing: .04em;
+    white-space: nowrap;
+  }
+
+  /* ── Chat window ── */
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    scroll-behavior: smooth;
+  }
+
+  /* ── Message rows ── */
+  .row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    max-width: 760px;
+    width: 100%;
+  }
+  .row.user  { margin-left: auto; flex-direction: row-reverse; }
+  .row.bot   { margin-right: auto; }
+
+  .avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .row.user .avatar { background: var(--shl-teal); color: #fff; }
+  .row.bot  .avatar { background: var(--shl-blue); color: #fff; }
+
+  .bubble {
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    max-width: calc(100% - 48px);
+    line-height: 1.55;
+    font-size: 0.92rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .row.user .bubble {
+    background: var(--bubble-user);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .row.bot .bubble {
+    background: var(--bubble-bot);
+    color: var(--text-main);
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+
+  /* ── Recommendation cards ── */
+  .recs {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .rec-card {
+    background: var(--shl-light);
+    border: 1px solid #dde4ed;
+    border-left: 4px solid var(--shl-teal);
+    border-radius: 10px;
+    padding: 10px 14px;
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow .15s, border-color .15s;
+    display: block;
+  }
+  .rec-card:hover { box-shadow: 0 2px 10px rgba(0,163,161,.2); border-left-color: var(--shl-blue); }
+  .rec-name  { font-weight: 600; font-size: 0.88rem; color: var(--shl-blue); }
+  .rec-type  { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── Typing indicator ── */
+  .typing .bubble { background: var(--bubble-bot); box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 14px 18px; }
+  .dots { display: flex; gap: 5px; }
+  .dots span {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--shl-teal);
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+  .dots span:nth-child(2) { animation-delay: .2s; }
+  .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes bounce {
+    0%,80%,100% { transform: translateY(0); opacity:.5; }
+    40%          { transform: translateY(-6px); opacity:1; }
+  }
+
+  /* ── End of conversation banner ── */
+  .eoc-banner {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 8px 16px;
+    border-top: 1px dashed #ccd5de;
+    margin-top: 4px;
+  }
+
+  /* ── Input bar ── */
+  #input-area {
+    flex-shrink: 0;
+    background: #fff;
+    border-top: 1px solid #dde4ed;
+    padding: 14px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  #msg {
+    flex: 1;
+    resize: none;
+    border: 1.5px solid #ccd5de;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 0.93rem;
+    font-family: inherit;
+    outline: none;
+    line-height: 1.45;
+    max-height: 120px;
+    transition: border-color .15s;
+  }
+  #msg:focus { border-color: var(--shl-teal); }
+  #msg::placeholder { color: #9ca3af; }
+
+  #send-btn {
+    background: var(--shl-blue);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    width: 44px; height: 44px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background .15s;
+  }
+  #send-btn:hover:not(:disabled) { background: var(--shl-teal); }
+  #send-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  #new-btn {
+    background: transparent;
+    border: 1.5px solid #ccd5de;
+    border-radius: 12px;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0 14px;
+    height: 44px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color .15s, color .15s;
+  }
+  #new-btn:hover { border-color: var(--shl-blue); color: var(--shl-blue); }
+
+  /* scrollbar */
+  #chat::-webkit-scrollbar { width: 6px; }
+  #chat::-webkit-scrollbar-track { background: transparent; }
+  #chat::-webkit-scrollbar-thumb { background: #ccd5de; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+    <rect width="36" height="36" rx="8" fill="#00a3a1"/>
+    <text x="18" y="24" text-anchor="middle" font-size="16" font-weight="800" fill="#fff" font-family="sans-serif">S</text>
+  </svg>
+  <div>
+    <h1>SHL Assessment Recommender</h1>
+    <p>Powered by SHL Individual Test Solutions catalog</p>
+  </div>
+  <span class="badge">AI Assistant</span>
+</header>
+
+<div id="chat"></div>
+
+<div id="input-area">
+  <button id="new-btn" title="Start new conversation">New chat</button>
+  <textarea id="msg" rows="1" placeholder="Describe the role you're hiring for…"></textarea>
+  <button id="send-btn" title="Send">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13"/>
+      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+    </svg>
+  </button>
+</div>
+
+<script>
+const chatEl   = document.getElementById("chat");
+const msgEl    = document.getElementById("msg");
+const sendBtn  = document.getElementById("send-btn");
+const newBtn   = document.getElementById("new-btn");
+
+let history = [];
+let busy    = false;
+
+// ── Initial bot greeting ──────────────────────────────────────────────────
+appendBot(
+  "Hi! I'm the SHL Assessment Recommender. Tell me about the role you're hiring for — job title, seniority, any specific skills — and I'll suggest the best assessments from the SHL catalog.",
+  []
+);
+
+// ── Auto-resize textarea ──────────────────────────────────────────────────
+msgEl.addEventListener("input", () => {
+  msgEl.style.height = "auto";
+  msgEl.style.height = Math.min(msgEl.scrollHeight, 120) + "px";
+});
+
+msgEl.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+sendBtn.addEventListener("click", send);
+newBtn.addEventListener("click", reset);
+
+// ── Send ──────────────────────────────────────────────────────────────────
+async function send() {
+  const text = msgEl.value.trim();
+  if (!text || busy) return;
+
+  appendUser(text);
+  history.push({ role: "user", content: text });
+  msgEl.value = "";
+  msgEl.style.height = "auto";
+
+  const typingEl = appendTyping();
+  busy = true;
+  sendBtn.disabled = true;
+
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: history }),
+    });
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    const data = await res.json();
+
+    typingEl.remove();
+    appendBot(data.reply, data.recommendations || []);
+    history.push({ role: "assistant", content: data.reply });
+
+    if (data.end_of_conversation) {
+      appendEOC();
+      msgEl.disabled = true;
+      sendBtn.disabled = true;
+    }
+  } catch (err) {
+    typingEl.remove();
+    appendBot("Sorry, something went wrong. Please try again.", []);
+  } finally {
+    busy = false;
+    if (!msgEl.disabled) sendBtn.disabled = false;
+    msgEl.focus();
+  }
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────
+function reset() {
+  history = [];
+  busy    = false;
+  msgEl.disabled    = false;
+  sendBtn.disabled  = false;
+  chatEl.innerHTML  = "";
+  appendBot(
+    "Hi! I'm the SHL Assessment Recommender. Tell me about the role you're hiring for — job title, seniority, any specific skills — and I'll suggest the best assessments from the SHL catalog.",
+    []
+  );
+  msgEl.focus();
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────────────
+function appendUser(text) {
+  const row = row_("user");
+  row.querySelector(".bubble").textContent = text;
+  chatEl.appendChild(row);
+  scrollBottom();
+}
+
+function appendBot(text, recs) {
+  const row = row_("bot");
+  row.querySelector(".bubble").textContent = text;
+
+  if (recs.length) {
+    const recsEl = document.createElement("div");
+    recsEl.className = "recs";
+    recs.forEach(r => {
+      const card = document.createElement("a");
+      card.className  = "rec-card";
+      card.href       = r.url;
+      card.target     = "_blank";
+      card.rel        = "noopener noreferrer";
+      card.innerHTML  = `<div class="rec-name">${escHtml(r.name)}</div>
+                         <div class="rec-type">${escHtml(labelType(r.test_type))}</div>`;
+      recsEl.appendChild(card);
+    });
+    row.querySelector(".bubble").appendChild(recsEl);
+  }
+
+  chatEl.appendChild(row);
+  scrollBottom();
+}
+
+function appendTyping() {
+  const row = row_("bot typing");
+  row.querySelector(".bubble").innerHTML =
+    `<div class="dots"><span></span><span></span><span></span></div>`;
+  chatEl.appendChild(row);
+  scrollBottom();
+  return row;
+}
+
+function appendEOC() {
+  const div = document.createElement("div");
+  div.className   = "eoc-banner";
+  div.textContent = "✓ Conversation complete — click \"New chat\" to start over.";
+  chatEl.appendChild(div);
+  scrollBottom();
+}
+
+function row_(cls) {
+  const row = document.createElement("div");
+  row.className = `row ${cls}`;
+  const initial = cls.includes("user") ? "You" : "AI";
+  row.innerHTML = `
+    <div class="avatar">${initial === "You" ? "👤" : "S"}</div>
+    <div class="bubble"></div>`;
+  return row;
+}
+
+function scrollBottom() {
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+const TYPE_LABELS = {
+  A: "Ability & Aptitude", B: "Biodata & Situational Judgement",
+  C: "Competencies", D: "Development & 360", E: "Assessment Exercises",
+  K: "Knowledge & Skills", P: "Personality & Behaviour",
+  S: "Simulations", T: "Job-Specific Assessments"
+};
+function labelType(codes) {
+  if (!codes) return "";
+  return codes.split(",").map(c => TYPE_LABELS[c.trim()] || c.trim()).join(" · ");
+}
+</script>
+</body>
+</html>
