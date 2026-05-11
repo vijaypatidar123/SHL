@@ -94,9 +94,6 @@ def _post_chat(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        # OpenRouter uses these for analytics/attribution; harmless if blank.
-        "HTTP-Referer": os.environ.get("OPENROUTER_REFERER", "https://shl-recommender.local"),
-        "X-Title": "SHL Conversational Recommender",
     }
 
     with httpx.Client(timeout=timeout) as client:
