@@ -46,6 +46,18 @@ def ui() -> FileResponse:
 @app.on_event("startup")
 def _startup() -> None:
     log.info("loaded catalog: %d items", len(ALL_ITEMS))
+    # Pre-warm retriever in background so first request is fast
+    import threading
+    threading.Thread(target=_prewarm, daemon=True).start()
+
+def _prewarm() -> None:
+    try:
+        from app.retrieval import get_retriever
+        r = get_retriever()
+        r._ensure_dense()
+        log.info("retriever pre-warmed")
+    except Exception as exc:
+        log.warning("pre-warm failed: %s", exc)
 
 
 @app.get("/health", response_model=HealthResponse)
