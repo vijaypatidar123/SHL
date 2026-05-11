@@ -89,8 +89,21 @@ class Retriever:
 
     def _ensure_dense(self) -> bool:
         """Load (or build) the dense corpus index. Returns True on success."""
+        # Always ensure encoder is loaded when dense is available
+        if self._encoder is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+                self._encoder = SentenceTransformer(EMBED_MODEL)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("dense disabled — cannot load %s: %s", EMBED_MODEL, exc)
+                self._encoder = False  # sentinel: don't retry
+
+        if not self._encoder:
+            return False
+
         if self._dense is not None:
             return True
+
         # Load cached corpus embeddings
         if CORPUS_EMB.exists():
             try:
@@ -105,23 +118,16 @@ class Retriever:
                     )
             except Exception as exc:  # noqa: BLE001
                 log.warning("failed to load %s: %s", CORPUS_EMB, exc)
-        # Build encoder lazily
-        if self._encoder is None:
-            try:
-                from sentence_transformers import SentenceTransformer
 
-                self._encoder = SentenceTransformer(EMBED_MODEL)
-            except Exception as exc:  # noqa: BLE001
-                log.warning("dense disabled — cannot load %s: %s", EMBED_MODEL, exc)
-                self._encoder = False  # sentinel: don't retry
-        if self._dense is None and self._encoder:
+        if self._dense is None:
             log.info("encoding %d docs (no cache found)", len(self.docs))
             self._dense = self._encoder.encode(
                 self.docs, normalize_embeddings=True, show_progress_bar=False
             ).astype(np.float32)
             EMB_DIR.mkdir(parents=True, exist_ok=True)
             np.save(CORPUS_EMB, self._dense)
-        return self._dense is not None and bool(self._encoder)
+
+        return self._dense is not None
 
     # ----- search ----------------------------------------------------------
     def search(
